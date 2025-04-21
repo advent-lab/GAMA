@@ -1,0 +1,210 @@
+# Author : Kaustubh Mhatre (kmhatre@asu.edu)
+# Advent Lab @ asu 
+mkfile_path := $(abspath $(lastword $(MAKEFILE_LIST)))
+mkfile_dir := $(dir $(mkfile_path))
+PATTERN := Pattern1_fp32
+
+#Host and target defination 
+TARGET   := hw
+MODE	 = linux
+HOST_ARCH = x86
+
+Frequency = 230
+PLATFORM_REPO_PATHS=/opt/xilinx/platforms
+PLATFORM_NAME=xilinx_vck5000_gen4x8_qdma_2_202220_1
+PLATFORM = ${PLATFORM_REPO_PATHS}/${PLATFORM_NAME}/${PLATFORM_NAME}.xpfm
+XCLBIN   = ${PLATFORM_NAME}${TARGET}.xsa
+
+HOST_EXE = hostexe
+HOST_SRCS := ./host/host.cpp
+BUILD_DIR_MAIN = build/$(PATTERN)_$(TARGET)
+EXEC_DIR = output/$(PATTERN)_$(TARGET)
+
+FINAL_XCLBIN=mm_${TARGET}.xclbin
+TEMP_DIR := ./$(BUILD_DIR_MAIN)/pl_kernel.$(TARGET).${PLATFORM_NAME}
+BUILD_DIR := ./$(BUILD_DIR_MAIN)/build_dir.$(TARGET).${PLATFORM_NAME}
+KERNEL_XO :=$(TEMP_DIR)/pl_kernel.xo
+
+# AIE specific variables
+GRAPH   := $(PATTERN)/src/project.cpp
+LIBADF  = libadf.a
+AIE_WORK_DIR = $(BUILD_DIR_MAIN)/Work_AIE_$(PATTERN)_$(TARGET)
+AIE_SIM_DIR = sim/$(PATTERN)
+AIE_CMPL_CMD = aiecompiler -platform=${PLATFORM} --stacksize=1024 --pl-register-threshold=250 --pl-freq=230  -include="$(PATTERN)/src" -include="$(PATTERN)/src/kernels" --disable-transform-broadcast-split=false -workdir=./$(AIE_WORK_DIR) ${GRAPH} --output-archive=$(EXEC_DIR)/$(LIBADF)
+AIE_SIM_CMD = aiesimulator --pkg-dir=./$(AIE_WORK_DIR) --dump-vcd $(AIE_SIM_DIR)/foo --profile -i $(PATTERN) -o $(AIE_SIM_DIR)
+AIE_HOSTEXE = aie_control_xrt.o
+
+ifeq ($(TARGET),sw_emu)
+	AIE_CMPL_CMD += --target=x86sim
+else
+	AIE_CMPL_CMD += --target=hw
+endif 
+
+EMU_CMD = ./launch_hw_emu.sh
+PACKAGE_OUT = ./package.$(TARGET)
+RM = rm -f
+RMDIR = rm -rf
+##########################################################################################################################################################
+### DO NOT MODIFY BELOW THIS LINE UNLESS NECESSARY
+################################################################################################################################################
+
+CUR_DIR := $(patsubst %/,%,$(dir $(mkfile_dir)))
+PACKET_IDS_C_H :=./Work/temp/packet_ids_c.h
+BINARY_CONTAINERS += $(BUILD_DIR)/${XCLBIN}
+VCC      = v++
+VPP_XO_FLAGS += -c --platform $(PLATFORM) --save-temps --optimize 2 -g
+VPP_XO_FLAGS += --hls.jobs 8
+VPP_XO_FLAGS += -I$(CUR_DIR)/pl_kernels
+VPP_XO_FLAGS +=  -t $(TARGET)
+# VPP_XO_FLAGS += --profile.data all:all:all
+
+CXX := g++
+
+ifneq ($(TARGET), hw)
+	CLFLAGS += -I ./pl_kernels
+endif
+
+GCC_FLAGS := -Wall -c \
+			 -std=c++17 \
+			 -Wno-int-to-pointer-cast \
+			 --sysroot=$(SYSROOT) \
+
+ifeq ($(TARGET),sw_emu)
+	GCC_FLAGS += -D__SYNCBO_ENABLE__ -D__PS_ENABLE_AIE__ -D__SW_EMU__
+	VPP_XO_FLAGS += -D__SW_EMU__
+endif
+
+
+GCC_INCLUDES := -I $(SYSROOT)/usr/include/xrt \
+				-I $(SYSROOT)/usr/include \
+				-I ./  \
+				-I ${XILINX_VITIS}/aietools/include \
+				-I ${XILINX_VITIS}/include \
+				-I /opt/xilinx/xrt/include \
+				-I /usr/bin/boost_1_63_0 \
+				-I ./Pattern3_fp32_Small2/src/kernels \
+				-I ./Pattern3_fp32_Small2/src \
+				-I ./pl_kernels
+
+GCC_LIB := -lxrt_coreutil -lxrt_core \
+		   -ladf_api_xrt \
+		   -lxaiengine \
+		   -L$(XILINX_XRT)/lib \
+		   --sysroot=$(SYSROOT) \
+		   -L${XILINX_VITIS}/aietools/lib/lnx64.o/ \
+		   -I ./Pattern3_fp32_Small2/src
+
+
+
+CLFLAGS += -t $(TARGET) --platform $(PLATFORM) --save-temps --optimize 2
+ifneq ($(TARGET), hw)
+	CLFLAGS += -g
+	CLFLAGS += -I ./pl_kernels
+endif
+CLFLAGS += --hls.jobs 8
+CLFLAGS += --config ./system.cfg
+CLFLAGS += --kernel_frequency ${Frequency}
+# CLFLAGS += --profile.data all:all:all
+LDCLFLAGS := --vivado.synth.jobs 8 --vivado.impl.jobs 8
+
+# Add package flags to packaging command
+PACKAGE_FLAGS +=  --package.boot_mode=ospi
+ifeq ($(TARGET),sw_emu)
+	PACKAGE_FLAGS +=  --package.defer_aie_run
+endif
+
+.PHONY: clean
+
+###
+# Guarding Checks. Do not modify.
+###
+check_defined = \
+	$(strip $(foreach 1,$1, \
+		$(call __check_defined,$1,$(strip $(value 2)))))
+
+__check_defined = \
+	$(if $(value $1),, \
+		$(error Undefined $1$(if $2, ($2))))
+
+guard-PLATFORM_REPO_PATHS:
+	$(call check_defined, PLATFORM_REPO_PATHS, Set your where you downloaded xilinx_vck190_es1_base_202110_1)
+
+
+
+all: aie kernels build host package
+
+aie: guard-PLATFORM_REPO_PATHS $(EXEC_DIR)/${LIBADF}
+$(EXEC_DIR)/${LIBADF}: ${GRAPH}
+# @rm -rf $(AIE_WORK_DIR) $(EXEC_DIR)/libadf.a
+	@mkdir -p $(AIE_WORK_DIR)
+	@mkdir -p $(EXEC_DIR)
+	time ${AIE_CMPL_CMD}
+	@echo "COMPLETE: aie success."
+
+aiesim: $(EXEC_DIR)/${LIBADF}
+	${AIE_SIM_CMD}
+	@echo "COMPLETE: aiesim success."
+
+
+kernels:$(KERNEL_XO)
+$(TEMP_DIR)/pl_kernel.xo: pl_kernels/PL_tiling.cpp pl_kernels/PL_tiling.hpp
+	mkdir -p $(TEMP_DIR)
+	@mkdir -p $(EXEC_DIR)
+	time $(VCC) $(VPP_XO_FLAGS) -k PL_tiling --hls.clock 300000000:PL_tiling --temp_dir $(TEMP_DIR)/hls_kernel_temp/ $< -o $@ | tee $(TEMP_DIR)/pl_kernel.log
+	@echo "### ***** pl_kernel compilation done! *****"
+
+build: $(BINARY_CONTAINERS)
+$(BUILD_DIR)/${XCLBIN}: ${KERNEL_XO} $(EXEC_DIR)/${LIBADF}
+	mkdir -p $(BUILD_DIR)
+	@mkdir -p $(EXEC_DIR)
+ifeq ($(TARGET),sw_emu)
+	export CPATH="/usr/include/x86_64-linux-gnu"; \
+	time v++ -l $(CLFLAGS) --temp_dir $(BUILD_DIR) $(LDCLFLAGS) -o $@ ${KERNEL_XO} $(EXEC_DIR)/${LIBADF}
+else
+	time v++ -l $(CLFLAGS) --temp_dir $(BUILD_DIR) $(LDCLFLAGS) -o $@ ${KERNEL_XO} $(EXEC_DIR)/${LIBADF}
+endif
+
+host:$(HOST_EXE)
+$(HOST_EXE):
+	@mkdir -p $(EXEC_DIR)
+ifeq ($(TARGET),sw_emu)
+	time $(CXX) $(GCC_FLAGS) $(GCC_INCLUDES) -o $(EXEC_DIR)/aie_control_xrt.o $(AIE_WORK_DIR)/ps/c_rts/aie_control_xrt.cpp
+endif
+	time $(CXX) $(HOST_SRCS) $(GCC_FLAGS) -fopenmp $(GCC_INCLUDES) -o $(EXEC_DIR)/main.o
+	time $(CXX) $(EXEC_DIR)/*.o $(GCC_LIB) -fopenmp -o $(EXEC_DIR)/$(HOST_EXE)
+	@echo "COMPLETE: Host application created."
+
+package:${FINAL_XCLBIN}
+${FINAL_XCLBIN}: $(BINARY_CONTAINERS) $(EXEC_DIR)/$(LIBADF) 
+	@mkdir -p $(EXEC_DIR)
+	time v++ -p -t $(TARGET) -f $(PLATFORM) $(BINARY_CONTAINERS) $(EXEC_DIR)/$(LIBADF) -o $(EXEC_DIR)/${FINAL_XCLBIN} --temp_dir $(BUILD_DIR_MAIN)/package_temp $(PACKAGE_FLAGS)
+	@echo "COMPLETE: package created."
+
+clean:
+	-$(RMDIR) $(HOST_EXE) $(XCLBIN)/{*sw_emu*,*hw_emu*} 
+	-$(RMDIR) profile_* TempConfig system_estimate.xtxt *.rpt *.csv *.o *.xo *.xpe *.xsa cfg qemu_dts_files emu_qemu_scripts *.db sim  *.a  Work aie/*.ll _x*
+	-$(RMDIR)  *v++* .Xil emconfig.json dltmp* xmltmp* *.log *.jou *.wcfg *.wdb *bin* *summary* *.BIN *.bif *.exe  *.log *.txt 
+
+cleanall: clean
+	-$(RMDIR) build* sd_card*
+	-$(RMDIR) package.* run_app.sh 
+	-$(RMDIR) *xclbin.run_summary qemu-memory-_* emulation _vimage pl* start_simulation.sh *.xclbin .ipcache
+	-$(RMDIR) output
+
+cleansim:
+	-$(RMDIR) aiesimulator_output foo.vcd ISS_RPC_SERVER_PORT
+cleantemp:
+	-$(RMDIR) ./_x.$(TARGET).${PLATFORM_NAME}
+cleanpac:
+	-$(RMDIR) hostexe main.o mm_hw.xclbin boot_image.bif BOOT.BIN aie.merged.cdo.bin
+
+# Sample Make Command 
+# time make -f Makefile_VCK5000 all &> make_all.log
+# Sample Make Command 
+# time make -f Makefile_VCK5000 all &> make_all.log
+# export CPATH="/usr/include/x86_64-linux-gnu" : to be done for resolving the cdef.h not found error
+# export XCL_EMULATION_MODE=sw_emu before running sw emu
+# emconfigutil --platform xilinx_vck5000_gen4x8_qdma_2_202220_1
+# export X86SIM_OPTIONSPATH=./build/Work_AIE/options/x86sim.options
+# AIE_DEBUG_AXIMM=true
+# export AIE_COMPILER_WORKDIR=/nfs/shared/home/kmhatre/workspace/Versal_ACAP_Analysis/MAXEVA/MaxEVA/build/Pattern3_fp32_Small2_hw_emu/Work_AIE_Pattern3_fp32_Small2_hw_emu
