@@ -1,0 +1,147 @@
+
+#include <vector>
+
+#include "include.h"
+#include "kernels.h"
+#include <adf.h>
+
+#define ADF_DEBUG
+
+#ifdef ADF_DEBUG
+#define DEBUG(x) x
+#else
+#define DEBUG(x)
+#endif
+
+using namespace adf;
+
+class simpleGraph : public adf::graph
+{
+private:
+    kernel mat_mul_k[4];
+
+public:
+    input_plio A[4];
+    input_plio B[4];
+
+    output_plio C[1];
+
+    simpleGraph()
+    {
+
+        DEBUG(printf("Debug simpleGraph AIE placement and buffer allocation\n"));
+        // input and output plio creation below
+        // A: 0   1    2  ...
+        //    x  x+1  x+2 ...
+        for (int i = 0; i < mult_X * mult_Y; i++)
+        {
+            A[i] = input_plio::create("A" + std::to_string(i), plio_128_bits,
+                                      "./matA" + std::to_string(i) + ".txt");
+            DEBUG(printf("PLIO A[%d] file: ./matA%d.txt\n", i, i));
+        }
+
+        // B: 0   y
+        //    1  y+1
+        //    2  y+2
+        //   ... ...
+        for (int i = 0; i < mult_Y * mult_Z; i++)
+        {
+            B[i] = input_plio::create("B" + std::to_string(i), plio_128_bits,
+                                      "./matB" + std::to_string(i) + ".txt");
+            DEBUG(printf("PLIO B[%d] file: ./matB%d.txt\n", i, i));
+        }
+
+        // C: 0   1    2  ...
+        //    x  x+1  x+2 ...
+        for (int i = 0; i < mult_X * mult_Z; i++)
+        {
+            C[i] = output_plio::create("C" + std::to_string(i), plio_128_bits,
+                                       "./matC" + std::to_string(i) + ".txt");
+            DEBUG(printf("PLIO C[%d] file: ./matC%d.txt\n", i, i));
+        }
+
+        // Kernel creation below
+
+        mat_mul_k[0] = kernel::create(opt_blocked_matrix_mult_i8A_i8B_o32PS);
+        mat_mul_k[1] = kernel::create(opt_blocked_matrix_mult_i8A_i8B_i32PS_o32PS);
+        mat_mul_k[2] = kernel::create(opt_blocked_matrix_mult_i8A_i8B_i32PS_o32PS);
+        mat_mul_k[3] = kernel::create(opt_blocked_matrix_mult_i8A_i8B_i32PS_o16C);
+
+        // 0
+        connect<>(A[0].out[0], mat_mul_k[0].in[0]);
+        dimensions(mat_mul_k[0].in[0]) = {single_M * single_K * 1};
+        connect<>(B[0].out[0], mat_mul_k[0].in[1]);
+        dimensions(mat_mul_k[0].in[1]) = {single_K * single_N * 1};
+
+        connect<cascade>(mat_mul_k[0].out[0], mat_mul_k[1].in[2]);
+        source(mat_mul_k[0]) = "kernels/kernels_i8A_i8B_o32PS.cc";
+        location<kernel>(mat_mul_k[0]) = tile(0, 0);
+        runtime<ratio>(mat_mul_k[0]) = 1.0;
+
+        // Kernel 0 buffer locations
+        location<stack>(mat_mul_k[0]) = {address(0, 0, 0x2000)};
+        location<buffer>(mat_mul_k[0].in[0]) = {address(0, 0, 0x0),
+                                                address(0, 0, 0x4000)};
+        location<buffer>(mat_mul_k[0].in[1]) = {address(0, 0, 0x8000),
+                                                address(0, 0, 0xC000)};
+
+        // 1
+        connect<>(A[1].out[0], mat_mul_k[1].in[0]);
+        dimensions(mat_mul_k[1].in[0]) = {single_M * single_K * 1};
+        connect<>(B[1].out[0], mat_mul_k[1].in[1]);
+        dimensions(mat_mul_k[1].in[1]) = {single_K * single_N * 1};
+
+        connect<cascade>(mat_mul_k[1].out[0], mat_mul_k[2].in[2]);
+        source(mat_mul_k[1]) = "kernels/kernels_i8A_i8B_i32PS_o32PS.cc";
+        location<kernel>(mat_mul_k[1]) = tile(1, 0);
+        runtime<ratio>(mat_mul_k[1]) = 1.0;
+
+        // Kernel 0 buffer locations
+        location<stack>(mat_mul_k[1]) = {address(1, 0, 0x2000)};
+        location<buffer>(mat_mul_k[1].in[0]) = {address(1, 0, 0x0),
+                                                address(1, 0, 0x4000)};
+        location<buffer>(mat_mul_k[1].in[1]) = {address(1, 0, 0x8000),
+                                                address(1, 0, 0xC000)};
+
+        // 2
+        connect<>(A[2].out[0], mat_mul_k[2].in[0]);
+        dimensions(mat_mul_k[2].in[0]) = {single_M * single_K * 1};
+        connect<>(B[2].out[0], mat_mul_k[2].in[1]);
+        dimensions(mat_mul_k[2].in[1]) = {single_K * single_N * 1};
+
+        connect<cascade>(mat_mul_k[2].out[0], mat_mul_k[3].in[2]);
+        source(mat_mul_k[2]) = "kernels/kernels_i8A_i8B_i32PS_o32PS.cc";
+        location<kernel>(mat_mul_k[2]) = tile(2, 0);
+        runtime<ratio>(mat_mul_k[2]) = 1.0;
+
+        // Kernel 0 buffer locations
+        location<stack>(mat_mul_k[2]) = {address(2, 0, 0x2000)};
+        location<buffer>(mat_mul_k[2].in[0]) = {address(2, 0, 0x0),
+                                                address(2, 0, 0x4000)};
+        location<buffer>(mat_mul_k[2].in[1]) = {address(2, 0, 0x8000),
+                                                address(2, 0, 0xC000)};
+
+        // 3
+        connect<>(A[3].out[0], mat_mul_k[3].in[0]);
+        dimensions(mat_mul_k[3].in[0]) = {single_M * single_K * 1};
+        connect<>(B[3].out[0], mat_mul_k[3].in[1]);
+        dimensions(mat_mul_k[3].in[1]) = {single_K * single_N * 1};
+
+        connect<>(mat_mul_k[3].out[0], C[0].in[0]);
+        dimensions(mat_mul_k[3].out[0]) = {single_M * single_N};
+
+        source(mat_mul_k[3]) = "kernels/kernels_i8A_i8B_i32PS_o16C.cc";
+
+        location<kernel>(mat_mul_k[3]) = tile(3, 0);
+        runtime<ratio>(mat_mul_k[3]) = 1.0;
+
+        // Kernel 1 buffer locations
+        location<stack>(mat_mul_k[3]) = {address(3, 0, 0x0000)};
+        location<buffer>(mat_mul_k[3].in[0]) = {address(3, 0, 0x2000),
+                                                address(3, 0, 0x6000)};
+        location<buffer>(mat_mul_k[3].in[1]) = {address(3, 0, 0xA000),
+                                                address(3, 0, 0xE000)};
+        location<buffer>(mat_mul_k[3].out[0]) = {address(2, 0, 0x6000),
+                                                 address(2, 0, 0xA000)};
+    }
+};
