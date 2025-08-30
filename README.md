@@ -33,8 +33,7 @@ GAMA's design can be scaled using the hyperparameters listed below
 Eg: X=2, G=4 , Y=2
 
 Here is how the workload is mapped to the AIEs using multiple packs
-<img src="/Users/pollux/workspace/Gama_readme/AIE_scaling_2x4x2_v3.png" width="400" height="300">
-
+<img width="1704" height="347" alt="AIE_scaling_2x4x2_v3" src="https://github.com/user-attachments/assets/8df8298f-3d3a-4c1c-942d-fd2e4827e9f9" />
 
 This design gets mapped to the grid as shown below
 <img src="/Users/pollux/workspace/Gama_readme/mapping_to_array.png" width="400" height="300">
