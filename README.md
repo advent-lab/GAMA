@@ -36,12 +36,13 @@ Here is how the workload is mapped to the AIEs using multiple packs
 <img width="1704" height="347" alt="AIE_scaling_2x4x2_v3" src="https://github.com/user-attachments/assets/8df8298f-3d3a-4c1c-942d-fd2e4827e9f9" />
 
 This design gets mapped to the grid as shown below
-<img src="/Users/pollux/workspace/Gama_readme/mapping_to_array.png" width="400" height="300">
+<img width="1398" height="296" alt="mapping_to_array" src="https://github.com/user-attachments/assets/058cf37f-b1ee-48a1-89c1-f5f673099963" />
 
 
 ### Dependencies
 * AMD/Xilinx Vitis 2024.1
 * AMD/Xilinx Versal VEK280 Platfrom (xilinx_vek280_base_202410_1.xpfm)
+
 
 
 ### Environment Setup
