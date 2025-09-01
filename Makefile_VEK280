@@ -1,3 +1,7 @@
+# Default AIE array scaling parameters (can be overridden by user)
+Y ?= 1
+G ?= 4
+X ?= 1
 # /*
 # Copyright (C) 2023, Advanced Micro Devices, Inc. All rights reserved.
 # SPDX-License-Identifier: X11
@@ -25,7 +29,7 @@ HOST_SRC := ./host/$(HOST_LOC)/host.cpp
 PLATFORM_NAME=xilinx_vek280_base_202410_1
 
 # Location to save temporary logs and compilation files and output 
-DESIGN_NAME := $(AIE_SRC)_$(PL_SRC)_$(HOST_LOC)_BufOpt$(BUFF_OPT)
+DESIGN_NAME := $(AIE_SRC)_$(PL_SRC)_$(HOST_LOC)_BufOpt$(BUFF_OPT)_Y$(Y)_G$(G)_X$(X)
 BUILD_DIR_MAIN = build/$(DESIGN_NAME)_$(TARGET)
 EXEC_DIR = output/$(DESIGN_NAME)_$(TARGET)
 ifeq ($(DEVICE_DEBUG),ON)
@@ -214,7 +218,7 @@ aie: $(EXEC_DIR)/$(GRAPH_O)
 #AIE or X86 compilation
 $(EXEC_DIR)/$(GRAPH_O): $(GRAPH)
 	@mkdir -p $(EXEC_DIR)
-	$(AIECC) $(AIE_FLAGS) $(GRAPH)
+	$(AIECC) $(AIE_FLAGS) --aie.Xpreproc -Dmult_Y=$(Y) --aie.Xpreproc -Dmult_G=$(G) --aie.Xpreproc -Dmult_X=$(X) $(GRAPH)
 
 
 ########################################################
