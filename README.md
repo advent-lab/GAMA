@@ -13,24 +13,23 @@ GAMA is an open-source framework delivering state-of-the-art acceleration for Ge
 |bf16-bf16 | 512x384x576 | 83 | 86% |
 
 ### Features
-* Comprehensive GEMM acceleration for AMD Versal AIE-ML FPGAs
+* Comprehensive GEMM acceleration for AMD Versal AIE-ML (VEK280)
 * Supports int8 and bfloat16 precisions
 * Maximizes the memory utilization upto 100%  
 * Custom buffer placement algorithm that minimizes bank conflicts reducing memory stalls
-* Staggered kernel placement pattern across AIE arrays for high array utilization (94%) and minimal routing congestion
-* Significantly reduced compilation times (up to 6x)
+* Staggered kernel placement pattern across AIE arrays to maximize AIE array utilization upto 94%
 
 ### Architecture Overview
 GAMA operates on the AMD Versal VE2802 device, leveraging 304 AIE-ML cores (8×38 grid) and supporting PLIO interfaces for communication with Programmable Logic (PL). The framework implements designs at three levels:
 
-* Single AIE: Maximizes memory utilization and selects optimal kernel sizes for different precisions
-* Pack of AIEs: Chains AIEs using cascades for large GEMMs
+* Single AIE: Maximizes memory utilization by selecting optimal kernel sizes for different precisions
+* Pack of AIEs: Chains AIEs leveraging the cascade interface to solve a bigger problem size
 * Complete Array: Replicates packs with staggered placement to avoid routing congestion and ensure scalability
 
-### Using X, G and Y hyperparameters
+### Scaling hyperparameters: X, G and Y 
 
 GAMA's design can be scaled using the hyperparameters listed below
-Eg: X=2, G=4 , Y=2
+Eg: X=2, G=4, Y=2
 
 Here is how the workload is mapped to the AIEs using multiple packs
 <img width="1704" height="347" alt="AIE_scaling_2x4x2_v3" src="https://github.com/user-attachments/assets/8df8298f-3d3a-4c1c-942d-fd2e4827e9f9" />
