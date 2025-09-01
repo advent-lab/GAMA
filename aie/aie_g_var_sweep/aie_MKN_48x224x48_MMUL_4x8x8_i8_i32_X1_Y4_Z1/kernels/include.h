@@ -4,13 +4,23 @@
 // define shift right for output values after matrix mult
 #define SHIFT 0
 
-// X dimesion scales the AIEs over the rows
+// // X dimesion scales the AIEs over the rows
+// #define mult_X 1
+// // Y dimension is used to group AIEs for reduction
+// #define mult_Y 4
+// // Z dimension scales the AIEs over the columns
+// #define mult_Z 1
+#ifndef mult_Y
+#define mult_Y 1
+#endif
+// // Y dimension is used to group AIEs for reduction
+#ifndef mult_G
+#define mult_G 4
+#endif
+// // // Z dimension scales the AIEs over the columns
+#ifndef mult_X
 #define mult_X 1
-// Y dimension is used to group AIEs for reduction
-#define mult_Y 4
-// Z dimension scales the AIEs over the columns
-#define mult_Z 1
-
+#endif
 // single kernel dimensions (MxKxN on manuscript)
 #define single_M 48
 #define single_K 224

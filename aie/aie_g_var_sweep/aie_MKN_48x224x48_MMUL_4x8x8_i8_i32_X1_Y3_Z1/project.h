@@ -27,6 +27,7 @@ public:
     simpleGraph() {
 
         DEBUG(printf("Debug simpleGraph AIE placement and buffer allocation\n"));
+        DEBUG(printf("Scaling: Y%d x G%d x X%d\n", mult_Y, mult_G, mult_X));
         DEBUG(printf("Total AIEs: %d\n", mult_X * mult_Y * mult_Z));
         DEBUG(printf("Total PLIOs: %d (IN %d OUT %d)\n",
                      (mult_X * mult_Y + mult_Y * mult_Z + mult_X * mult_Z),

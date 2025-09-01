@@ -17,24 +17,24 @@ using namespace adf;
 
 class simpleGraph : public adf::graph {
 private:
-    kernel mat_mul_k[mult_X * mult_Y * mult_Z];
+    kernel mat_mul_k[mult_Y * mult_G * mult_X];
 
 public:
-    input_plio A[mult_X * mult_Y];
-    input_plio B[mult_Y * mult_Z];
-    output_plio C[mult_X * mult_Z];
+    input_plio A[mult_Y * mult_G];
+    input_plio B[mult_G * mult_X];
+    output_plio C[mult_Y * mult_X];
 
     simpleGraph() {
 
         DEBUG(printf("Debug simpleGraph AIE placement and buffer allocation\n"));
-        DEBUG(printf("Total AIEs: %d\n", mult_X * mult_Y * mult_Z));
+        DEBUG(printf("Total AIEs: %d\n", mult_Y * mult_G * mult_X));
         DEBUG(printf("Total PLIOs: %d (IN %d OUT %d)\n",
-                     (mult_X * mult_Y + mult_Y * mult_Z + mult_X * mult_Z),
-                     (mult_X * mult_Y + mult_Y * mult_Z), mult_X * mult_Z));
+                     (mult_Y * mult_G + mult_G * mult_X + mult_Y * mult_X),
+                     (mult_Y * mult_G + mult_G * mult_X), mult_Y * mult_X));
         // input and output plio creation below
         // A: 0   1    2  ...
         //    x  x+1  x+2 ...
-        for (int i = 0; i < mult_X * mult_Y; i++) {
+        for (int i = 0; i < mult_Y * mult_G; i++) {
             A[i] = input_plio::create("A" + std::to_string(i), plio_128_bits,
                                       "./matA" + std::to_string(i) + ".txt");
             DEBUG(printf("PLIO A[%d] file: ./matA%d.txt\n", i, i));
@@ -44,7 +44,7 @@ public:
         //    1  y+1
         //    2  y+2
         //   ... ...
-        for (int i = 0; i < mult_Y * mult_Z; i++) {
+        for (int i = 0; i < mult_G * mult_X; i++) {
             B[i] = input_plio::create("B" + std::to_string(i), plio_128_bits,
                                       "./matB" + std::to_string(i) + ".txt");
             DEBUG(printf("PLIO B[%d] file: ./matB%d.txt\n", i, i));
@@ -52,7 +52,7 @@ public:
 
         // C: 0   1    2  ...
         //    x  x+1  x+2 ...
-        for (int i = 0; i < mult_X * mult_Z; i++) {
+        for (int i = 0; i < mult_Y * mult_X; i++) {
             C[i] = output_plio::create("C" + std::to_string(i), plio_128_bits,
                                        "./matC" + std::to_string(i) + ".txt");
             DEBUG(printf("PLIO C[%d] file: ./matC%d.txt\n", i, i));
@@ -67,21 +67,21 @@ public:
         int plio_B = 0;
         int plio_C = 0;
 
-        // mult_Z = 4
-        // mult_X = 1
+        // mult_X = 4
+        // mult_Y = 1
 
         // X dimension scales the AIEs over the rows
-        for (int j = 0; j < mult_X; j++) {
+        for (int j = 0; j < mult_Y; j++) {
             // Z dimension scales the AIEs over the column
-            for (int k = 0; k < mult_Z; k++) {
+            for (int k = 0; k < mult_X; k++) {
                 // Use Y axis for grouping the AIE's for reduction
-                for (int i = 0; i < mult_Y; i++) {
-                    k_count_ka = (j * mult_Z * mult_Y) + (k * mult_Y) + i;
+                for (int i = 0; i < mult_G; i++) {
+                    k_count_ka = (j * mult_X * mult_G) + (k * mult_G) + i;
                     DEBUG(printf("Kernel count for kernel assignment: %d\n", k_count_ka));
                     if (i == 0) {
                         mat_mul_k[k_count_ka] =
                             kernel::create(opt_blocked_matrix_mult_i8A_i8B_o32PS);
-                    } else if (i == mult_Y - 1) {
+                    } else if (i == mult_G - 1) {
                         mat_mul_k[k_count_ka] =
                             kernel::create(opt_blocked_matrix_mult_i8A_i8B_i32PS_o32C);
                     } else {
@@ -91,20 +91,20 @@ public:
                 }
 
                 // Kernel creation below
-                for (int i = 0; i < mult_Y; i++) {
-                    tile_x = (k * mult_Y) + i;
+                for (int i = 0; i < mult_G; i++) {
+                    tile_x = (k * mult_G) + i;
                     if (j % 2) {
-                        tile_x = (k * mult_Y) + i + 2;
+                        tile_x = (k * mult_G) + i + 2;
                     } else {
-                        tile_x = (k * mult_Y) + i;
+                        tile_x = (k * mult_G) + i;
                     }
                     tile_y = j;
                     // kernel_count = i;
-                    kernel_count = (j * mult_Z * mult_Y) + (k * mult_Y) + i;
-                    plio_A = (j * mult_Y) + i;
-                    plio_B = (k * mult_Y) + i;
-                    // plio_C = i % (mult_Y - 1); // One PLIO out for each group
-                    plio_C = j * mult_Z + k; // One PLIO out for each group
+                    kernel_count = (j * mult_X * mult_G) + (k * mult_G) + i;
+                    plio_A = (j * mult_G) + i;
+                    plio_B = (k * mult_G) + i;
+                    // plio_C = i % (mult_G - 1); // One PLIO out for each group
+                    plio_C = j * mult_X + k; // One PLIO out for each group
                     DEBUG(printf("AIE_Tile(%d,%d)\n", tile_x, tile_y));
                     DEBUG(printf("Kernel %d\n", kernel_count));
                     DEBUG(printf("PLIO(A[%d],B[%d])\n", plio_A, plio_B));
@@ -152,7 +152,7 @@ public:
                     }
                     // Last kernel in the group should have outputs to PLIO
                     // Last AIE from the group
-                    else if (i == mult_Y - 1) {
+                    else if (i == mult_G - 1) {
 
                         connect<>(A[plio_A].out[0], mat_mul_k[kernel_count].in[0]);
                         dimensions(mat_mul_k[kernel_count].in[0]) = {single_M * single_K *
@@ -198,7 +198,7 @@ public:
                     // Second last AIE from the group
                     // partial
                     // sum
-                    else if (i == mult_Y - 2) {
+                    else if (i == mult_G - 2) {
 
                         connect<>(A[plio_A].out[0], mat_mul_k[kernel_count].in[0]);
                         dimensions(mat_mul_k[kernel_count].in[0]) = {single_M * single_K *
