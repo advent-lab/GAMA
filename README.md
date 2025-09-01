@@ -28,10 +28,11 @@ GAMA operates on the AMD Versal VE2802 device, leveraging 304 AIE-ML cores (8×3
 
 ### Scaling hyperparameters: X, G and Y 
 
-GAMA's design can be scaled using the hyperparameters listed below
-Eg: X=2, G=4, Y=2
+GAMA's design can be scaled using these hyperparameters
 
-Here is how the workload is mapped to the AIEs using multiple packs
+Eg: Y=2, G=4, X=2
+
+The workload is mapped to the AIEs using multiple packs as shown below
 <img width="1704" height="347" alt="AIE_scaling_2x4x2_v3" src="https://github.com/user-attachments/assets/8df8298f-3d3a-4c1c-942d-fd2e4827e9f9" />
 
 This design gets mapped to the grid as shown below
