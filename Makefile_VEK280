@@ -323,7 +323,7 @@ clean:
 
 
 # Sample compilation commands with required flags
-# make -f Makefile_VEK280 AIE_SRC=aie_maxeva PL_SRC=pl_maxeva CONFIG=conn_maxeva.cfg HOST_LOC=host TARGET=sw_emu all -nk &> compile.log
+# make -f Makefile_VEK280 AIE_SRC=aie/aie_constr_buf_array_scaling/aie_MKN_48x240x48_MMUL_4x8x8_i8_i32  TARGET=hw_emu Y=8 G=4 X=9 BUFF_OPT=0 aiesim
 
 # sw_emu ai enigne option file 
 # export X86SIM_OPTIONSPATH ./build/aie_maxeva_pl_maxeva_host_maxeva_sw_emu/Work_AIE_aie_maxeva_sw_emu/options/x86sim.options

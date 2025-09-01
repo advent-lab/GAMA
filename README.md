@@ -60,7 +60,8 @@ source /opt/xilinx/xrt/setup.sh
 
 ### Compilation command 
 ``` bash
-make -f Makefile_VEK280 aiesim AIE_SRC=<path to the aie directory> TARGET=hw BUFF_OPT=0
+make -f Makefile_VEK280 aiesim AIE_SRC=<path to the aie directory> TARGET=hw Y=8 G=4 X=9 BUFF_OPT=0
+eg: make -f Makefile_VEK280 AIE_SRC=aie/aie_constr_buf_array_scaling/aie_MKN_48x240x48_MMUL_4x8x8_i8_i32  TARGET=hw Y=8 G=4 X=9 BUFF_OPT=0 aiesim
 ```
 
 
