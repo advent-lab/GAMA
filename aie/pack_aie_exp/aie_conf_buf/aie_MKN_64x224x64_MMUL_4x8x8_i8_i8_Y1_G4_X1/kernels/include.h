@@ -5,15 +5,15 @@
 #define SHIFT 0
 
 // X dimesion scales the AIEs over the rows
-#define mult_X 1
+#define mult_Y 1
 // Y dimension is used to group AIEs for reduction
-#define mult_Y 4
+#define mult_G 4
 // Z dimension scales the AIEs over the columns
-#define mult_Z 1
+#define mult_X 1
 
 // single kernel dimensions (MxKxN on manuscript)
 #define single_M 64
-#define single_K 184
+#define single_K 224
 #define single_N 64
 
 // AI Engine API dimensions
@@ -22,7 +22,7 @@
 #define N_API 8
 
 const int L0_h1 = 64;
-const int L0_w1 = 184;
+const int L0_w1 = 224;
 const int L0_w2 = 64;
 
 #define SW_SIM_ITER 4

@@ -17,24 +17,24 @@ using namespace adf;
 
 class simpleGraph : public adf::graph {
 private:
-    kernel mat_mul_k[mult_X * mult_Y * mult_Z];
+    kernel mat_mul_k[mult_Y * mult_G * mult_X];
 
 public:
-    input_plio A[mult_X * mult_Y];
-    input_plio B[mult_Y * mult_Z];
-    output_plio C[mult_X * mult_Z];
+    input_plio A[mult_Y * mult_G];
+    input_plio B[mult_G * mult_X];
+    output_plio C[mult_Y * mult_X];
 
     simpleGraph() {
 
         DEBUG(printf("Debug simpleGraph AIE placement and buffer allocation\n"));
-        DEBUG(printf("Total AIEs: %d\n", mult_X * mult_Y * mult_Z));
+        DEBUG(printf("Total AIEs: %d\n", mult_Y * mult_G * mult_X));
         DEBUG(printf("Total PLIOs: %d (IN %d OUT %d)\n",
-                     (mult_X * mult_Y + mult_Y * mult_Z + mult_X * mult_Z),
-                     (mult_X * mult_Y + mult_Y * mult_Z), mult_X * mult_Z));
+                     (mult_Y * mult_G + mult_G * mult_X + mult_Y * mult_X),
+                     (mult_Y * mult_G + mult_G * mult_X), mult_Y * mult_X));
         // input and output plio creation below
         // A: 0   1    2  ...
         //    x  x+1  x+2 ...
-        for (int i = 0; i < mult_X * mult_Y; i++) {
+        for (int i = 0; i < mult_Y * mult_G; i++) {
             A[i] = input_plio::create("A" + std::to_string(i), plio_128_bits,
                                       "./matA" + std::to_string(i) + ".txt");
             DEBUG(printf("PLIO A[%d] file: ./matA%d.txt\n", i, i));
@@ -44,7 +44,7 @@ public:
         //    1  y+1
         //    2  y+2
         //   ... ...
-        for (int i = 0; i < mult_Y * mult_Z; i++) {
+        for (int i = 0; i < mult_G * mult_X; i++) {
             B[i] = input_plio::create("B" + std::to_string(i), plio_128_bits,
                                       "./matB" + std::to_string(i) + ".txt");
             DEBUG(printf("PLIO B[%d] file: ./matB%d.txt\n", i, i));
@@ -52,7 +52,7 @@ public:
 
         // C: 0   1    2  ...
         //    x  x+1  x+2 ...
-        for (int i = 0; i < mult_X * mult_Z; i++) {
+        for (int i = 0; i < mult_Y * mult_X; i++) {
             C[i] = output_plio::create("C" + std::to_string(i), plio_128_bits,
                                        "./matC" + std::to_string(i) + ".txt");
             DEBUG(printf("PLIO C[%d] file: ./matC%d.txt\n", i, i));
@@ -67,23 +67,23 @@ public:
         int plio_B = 0;
         int plio_C = 0;
 
-        // mult_Z = 4
-        // mult_X = 1
+        // mult_X = 4
+        // mult_Y = 1
 
         // X dimension scales the AIEs over the rows
-        for (int j = 0; j < mult_X; j++) {
+        for (int j = 0; j < mult_Y; j++) {
             // Z dimension scales the AIEs over the column
-            for (int k = 0; k < mult_Z; k++) {
+            for (int k = 0; k < mult_X; k++) {
                 // Use Y axis for grouping the AIE's for reduction
-                for (int i = 0; i < mult_Y; i++) {
-                    k_count_ka = (j * mult_Z * mult_Y) + (k * mult_Y) + i;
+                for (int i = 0; i < mult_G; i++) {
+                    k_count_ka = (j * mult_X * mult_G) + (k * mult_G) + i;
                     DEBUG(printf("Kernel count for kernel assignment: %d\n", k_count_ka));
                     if (i == 0) {
                         mat_mul_k[k_count_ka] =
                             kernel::create(opt_blocked_matrix_mult_i8A_i8B_o32PS);
-                    } else if (i == mult_Y - 1) {
+                    } else if (i == mult_G - 1) {
                         mat_mul_k[k_count_ka] =
-                            kernel::create(opt_blocked_matrix_mult_i8A_i8B_i32PS_o16C);
+                            kernel::create(opt_blocked_matrix_mult_i8A_i8B_i32PS_o8C);
                     } else {
                         mat_mul_k[k_count_ka] =
                             kernel::create(opt_blocked_matrix_mult_i8A_i8B_i32PS_o32PS);
@@ -91,20 +91,20 @@ public:
                 }
 
                 // Kernel creation below
-                for (int i = 0; i < mult_Y; i++) {
-                    // tile_x = (k * mult_Y) + i;
+                for (int i = 0; i < mult_G; i++) {
+                    // tile_x = (k * mult_G) + i;
                     if (j % 2) {
-                        tile_x = (k * mult_Y) + i + 2;
+                        tile_x = (k * mult_G) + i + 2;
                     } else {
-                        tile_x = (k * mult_Y) + i;
+                        tile_x = (k * mult_G) + i;
                     }
                     tile_y = j;
                     // kernel_count = i;
-                    kernel_count = (j * mult_Z * mult_Y) + (k * mult_Y) + i;
-                    plio_A = (j * mult_Y) + i;
-                    plio_B = (k * mult_Y) + i;
-                    // plio_C = i % (mult_Y - 1); // One PLIO out for each group
-                    plio_C = j * mult_Z + k; // One PLIO out for each group
+                    kernel_count = (j * mult_X * mult_G) + (k * mult_G) + i;
+                    plio_A = (j * mult_G) + i;
+                    plio_B = (k * mult_G) + i;
+                    // plio_C = i % (mult_G - 1); // One PLIO out for each group
+                    plio_C = j * mult_X + k; // One PLIO out for each group
                     DEBUG(printf("AIE_Tile(%d,%d)\n", tile_x, tile_y));
                     DEBUG(printf("Kernel %d\n", kernel_count));
                     DEBUG(printf("PLIO(A[%d],B[%d])\n", plio_A, plio_B));
@@ -149,16 +149,16 @@ public:
 
                         // Kernel 0 buffer locations
                         // location<stack>(mat_mul_k[kernel_count]) = {
-                        //     address(tile_x, tile_y, 0x0000)};
+                        //     address(tile_x, tile_y, 0x3600)};
                         // location<buffer>(mat_mul_k[kernel_count].in[0]) = {
-                        //     address(tile_x, tile_y, 0x1000),
+                        //     address(tile_x, tile_y, 0x0),
                         //     address(tile_x, tile_y, 0x4000)};
                         // location<buffer>(mat_mul_k[kernel_count].in[1]) = {
                         //     address(tile_x, tile_y, 0x8000),
                         //     address(tile_x, tile_y, 0xC000)};
                     }
                     // Last kernel in the group should have outputs to PLIO
-                    else if (i == mult_Y - 1) {
+                    else if (i == mult_G - 1) {
 
                         connect<>(A[plio_A].out[0], mat_mul_k[kernel_count].in[0]);
                         dimensions(mat_mul_k[kernel_count].in[0]) = {single_M * single_K *
@@ -182,7 +182,7 @@ public:
                             plio_C, kernel_count, single_M * single_N));
 
                         source(mat_mul_k[kernel_count]) =
-                            "kernels/kernels_i8A_i8B_i32PS_o16C.cc";
+                            "kernels/kernels_i8A_i8B_i32PS_o8C.cc";
 
                         location<kernel>(mat_mul_k[kernel_count]) = tile(tile_x, tile_y);
                         runtime<ratio>(mat_mul_k[kernel_count]) = 1.0;
@@ -198,20 +198,19 @@ public:
                             location<kernel>(mat_mul_k[kernel_count]);
                         // Kernel 1 buffer locations
                         // location<stack>(mat_mul_k[kernel_count]) = {
-                        //     address(tile_x, tile_y, 0xC000)};
+                        //     address(tile_x, tile_y, 0x3600)};
                         // location<buffer>(mat_mul_k[kernel_count].in[0]) = {
                         //     address(tile_x, tile_y, 0x0),
                         //     address(tile_x, tile_y, 0x4000)};
                         // location<buffer>(mat_mul_k[kernel_count].in[1]) = {
                         //     address(tile_x, tile_y, 0x8000),
-                        //     address(tile_x, tile_y, 0xC900)};
+                        //     address(tile_x, tile_y, 0xC000)};
                         // location<buffer>(mat_mul_k[kernel_count].out[0]) = {
-                        //     address(tile_x - 1, tile_y, 0x2C00),
-                        //     address(tile_x - 1, tile_y, 0x8000)};
+                        //     address(tile_x - 1, tile_y, 0x3600),
+                        //     address(tile_x - 1, tile_y, 0xEC00)};
                     }
-                    // Kernel in between should have cascade input and output for partial
-                    // sum
-                    else if (i == mult_Y - 2) {
+                    // Second last kernel
+                    else if (i == mult_G - 2) {
 
                         connect<>(A[plio_A].out[0], mat_mul_k[kernel_count].in[0]);
                         dimensions(mat_mul_k[kernel_count].in[0]) = {single_M * single_K *
@@ -247,65 +246,60 @@ public:
 
                         // Kernel 0 buffer locations
                         // location<stack>(mat_mul_k[kernel_count]) = {
-                        //     address(tile_x, tile_y, 0x2000)};
-                        // location<buffer>(mat_mul_k[kernel_count].in[0]) = {
-                        //     address(tile_x, tile_y, 0x0),
-                        //     address(tile_x, tile_y, 0x4000)};
-                        // location<buffer>(mat_mul_k[kernel_count].in[1]) = {
-                        //     address(tile_x, tile_y, 0x8000),
-                        //     address(tile_x, tile_y, 0xC000)};
-
-                        // location<stack>(mat_mul_k[kernel_count]) = {
-                        //     address(tile_x - 1, tile_y, 0xEC00)};
-                        // // Buffer locations for kernel
-                        // location<buffer>(mat_mul_k[kernel_count].in[0]) = {
-                        //     address(tile_x, tile_y, 0x0000),
-                        //     address(tile_x, tile_y, 0x4C00)};
-                        // location<buffer>(mat_mul_k[kernel_count].in[1]) = {
-                        //     address(tile_x, tile_y, 0xA000),
-                        //     address(tile_x, tile_y, 0xCC00)};
-                    } else {
-
-                        connect<>(A[plio_A].out[0], mat_mul_k[kernel_count].in[0]);
-                        dimensions(mat_mul_k[kernel_count].in[0]) = {single_M * single_K *
-                                                                     1};
-                        DEBUG(printf(
-                            "PL-Kernel: A[%d] to kernel_%d_in0 with dimension %d \n",
-                            plio_A, kernel_count, single_M * single_K));
-
-                        connect<>(B[plio_B].out[0], mat_mul_k[kernel_count].in[1]);
-                        dimensions(mat_mul_k[kernel_count].in[1]) = {single_K * single_N *
-                                                                     1};
-                        DEBUG(printf(
-                            "PL-Kernel: B[%d] to kernel_%d_in1 with dimension %d \n",
-                            plio_B, kernel_count, single_K * single_N));
-
-                        connect<cascade>(mat_mul_k[kernel_count].out[0],
-                                         mat_mul_k[kernel_count + 1].in[2]);
-                        DEBUG(printf("Cascade: kernel_%d_out0 to kernel_%d_in2 \n",
-                                     kernel_count, kernel_count + 1));
-
-                        source(mat_mul_k[kernel_count]) =
-                            "kernels/kernels_i8A_i8B_i32PS_o32PS.cc";
-                        location<kernel>(mat_mul_k[kernel_count]) = tile(tile_x, tile_y);
-                        runtime<ratio>(mat_mul_k[kernel_count]) = 1.0;
-
-                        location<stack>(mat_mul_k[kernel_count]) =
-                            location<kernel>(mat_mul_k[kernel_count]);
-                        location<buffer>(mat_mul_k[kernel_count].in[0]) =
-                            location<kernel>(mat_mul_k[kernel_count]);
-
-                        location<buffer>(mat_mul_k[kernel_count].in[1]) =
-                            location<kernel>(mat_mul_k[kernel_count]);
-
-                        // Kernel 0 buffer locations
-                        // location<stack>(mat_mul_k[kernel_count]) = {
-                        //     address(tile_x - 1, tile_y, 0xEC00)};
+                        //     address(tile_x - 1, tile_y, 0xF600)};
                         // location<buffer>(mat_mul_k[kernel_count].in[0]) = {
                         //     address(tile_x, tile_y, 0x0000),
                         //     address(tile_x, tile_y, 0x8000)};
                         // location<buffer>(mat_mul_k[kernel_count].in[1]) = {
-                        //     address(tile_x, tile_y, 0x4000),
+                        //     address(tile_x, tile_y, 0x4600),
+                        //     address(tile_x, tile_y, 0xB600)};
+                    }
+
+                    // Kernel in between should have cascade input and output for
+                    // partial
+                    // sum
+                    else {
+
+                        connect<>(A[plio_A].out[0], mat_mul_k[kernel_count].in[0]);
+                        dimensions(mat_mul_k[kernel_count].in[0]) = {single_M * single_K *
+                                                                     1};
+                        DEBUG(printf(
+                            "PL-Kernel: A[%d] to kernel_%d_in0 with dimension %d \n",
+                            plio_A, kernel_count, single_M * single_K));
+
+                        connect<>(B[plio_B].out[0], mat_mul_k[kernel_count].in[1]);
+                        dimensions(mat_mul_k[kernel_count].in[1]) = {single_K * single_N *
+                                                                     1};
+                        DEBUG(printf(
+                            "PL-Kernel: B[%d] to kernel_%d_in1 with dimension %d \n",
+                            plio_B, kernel_count, single_K * single_N));
+
+                        connect<cascade>(mat_mul_k[kernel_count].out[0],
+                                         mat_mul_k[kernel_count + 1].in[2]);
+                        DEBUG(printf("Cascade: kernel_%d_out0 to kernel_%d_in2 \n",
+                                     kernel_count, kernel_count + 1));
+
+                        source(mat_mul_k[kernel_count]) =
+                            "kernels/kernels_i8A_i8B_i32PS_o32PS.cc";
+                        location<kernel>(mat_mul_k[kernel_count]) = tile(tile_x, tile_y);
+                        runtime<ratio>(mat_mul_k[kernel_count]) = 1.0;
+
+                        location<stack>(mat_mul_k[kernel_count]) =
+                            location<kernel>(mat_mul_k[kernel_count]);
+                        location<buffer>(mat_mul_k[kernel_count].in[0]) =
+                            location<kernel>(mat_mul_k[kernel_count]);
+
+                        location<buffer>(mat_mul_k[kernel_count].in[1]) =
+                            location<kernel>(mat_mul_k[kernel_count]);
+
+                        // Kernel 0 buffer locations
+                        // location<stack>(mat_mul_k[kernel_count]) = {
+                        //     address(tile_x, tile_y, 0x3600)};
+                        // location<buffer>(mat_mul_k[kernel_count].in[0]) = {
+                        //     address(tile_x, tile_y, 0x0),
+                        //     address(tile_x, tile_y, 0x4000)};
+                        // location<buffer>(mat_mul_k[kernel_count].in[1]) = {
+                        //     address(tile_x, tile_y, 0x8000),
                         //     address(tile_x, tile_y, 0xC000)};
                     }
                 }

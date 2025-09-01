@@ -5,11 +5,11 @@
 #define SHIFT 0
 
 // X dimesion scales the AIEs over the rows
-#define mult_X 1
+#define mult_Y 1
 // Y dimension is used to group AIEs for reduction
-#define mult_Y 4
+#define mult_G 4
 // Z dimension scales the AIEs over the columns
-#define mult_Z 1
+#define mult_X 1
 
 // single kernel dimensions (MxKxN on manuscript)
 #define single_M 48
